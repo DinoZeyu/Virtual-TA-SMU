@@ -16,14 +16,11 @@ __pycache__/
 # ==========================================
 .env
 .env.*
-*.lock
 *.yaml
 *.yml
-*.toml
 .venv/
 venv/
 .envrc
-uv.lock
 
 # Conda environment
 *.conda
@@ -53,26 +50,6 @@ pip-wheel-metadata/
 *.swp
 *.bak
 
-# ==========================================
-# 💾 数据文件与模型
-# ==========================================
-*.csv
-*.tsv
-*.xlsx
-*.xls
-*.jsonl
-*.parquet
-*.sqlite
-*.db
-*.pkl
-*.pt
-*.bin
-*.ckpt
-*.safetensors
-*.h5
-*.npz
-*.npy
-
 # Hugging Face / Transformers 缓存
 ~/.cache/
 huggingface/
@@ -100,11 +77,7 @@ mlruns/
 # ==========================================
 # 📂 项目特定（Virtual-TA-SMU）
 # ==========================================
-Datasets/
-Generated_Outputs/
-Cleaned_Outputs/
-LLM_Pipeline/
-Job_Page_Crawler/
+unsloth_compiled_cache/
 local_models/
 *.safetensors
 *.pth
@@ -117,7 +90,7 @@ local_models/
 .ipynb_checkpoints/
 *.nbconvert.ipynb
 *.nb.html
-
+process.txt
 # ==========================================
 # 📸 临时/资源文件
 # ==========================================
