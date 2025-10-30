@@ -1,0 +1,144 @@
+# ==========================================
+# 🧠 Python 基础
+# ==========================================
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.log
+*.out
+*.tmp
+.DS_Store
+
+# ==========================================
+# 🧩 环境与配置文件
+# ==========================================
+.env
+.env.*
+*.lock
+*.yaml
+*.yml
+*.toml
+.venv/
+venv/
+.envrc
+uv.lock
+
+# Conda environment
+*.conda
+*.condarc
+*.sh
+*.bat
+
+# ==========================================
+# 📦 依赖与缓存
+# ==========================================
+build/
+dist/
+*.egg-info/
+.eggs/
+.cache/
+__pypackages__/
+pip-wheel-metadata/
+*.whl
+
+# ==========================================
+# ⚙️ IDE / 编辑器
+# ==========================================
+.vscode/
+.idea/
+*.code-workspace
+*.sublime*
+*.swp
+*.bak
+
+# ==========================================
+# 💾 数据文件与模型
+# ==========================================
+*.csv
+*.tsv
+*.xlsx
+*.xls
+*.jsonl
+*.parquet
+*.sqlite
+*.db
+*.pkl
+*.pt
+*.bin
+*.ckpt
+*.safetensors
+*.h5
+*.npz
+*.npy
+
+# Hugging Face / Transformers 缓存
+~/.cache/
+huggingface/
+transformers/
+datasets/
+unsloth_cache/
+outputs/
+results/
+
+# ==========================================
+# 🧠 LLM / AutoGen 运行中生成的文件
+# ==========================================
+*.conversation.json
+*.agent.log
+*.chat_history.json
+*.trace/
+*.trace.json
+logs/
+tmp/
+checkpoints/
+runs/
+wandb/
+mlruns/
+
+# ==========================================
+# 📂 项目特定（Virtual-TA-SMU）
+# ==========================================
+Datasets/
+Generated_Outputs/
+Cleaned_Outputs/
+LLM_Pipeline/
+Job_Page_Crawler/
+local_models/
+*.safetensors
+*.pth
+*.pt
+*.onnx
+
+# ==========================================
+# 🧪 Notebook 缓存
+# ==========================================
+.ipynb_checkpoints/
+*.nbconvert.ipynb
+*.nb.html
+
+# ==========================================
+# 📸 临时/资源文件
+# ==========================================
+screenshots/
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.pdf
+*.svg
+
+# ==========================================
+# 🚫 重要敏感文件（永不上传）
+# ==========================================
+# Tokens, keys, credentials
+.env
+.env.local
+.env.secret
+*.pem
+*.key
+*.crt
+*.cert
+*.token
+*token*.txt

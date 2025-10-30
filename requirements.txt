@@ -1,0 +1,37 @@
+# ---------- Core Agent Frameworks ----------
+langchain
+langchain-community
+langchain-core
+langgraph
+
+# Microsoft AutoGen (multi-agent)
+autogen-agentchat
+autogen-core
+autogen-ext[openai]
+
+# ---------- Local / Private LLM support ----------
+transformers>=4.45.0
+accelerate>=0.34.2
+unsloth>=2024.9.0
+torch>=2.4.0
+sentencepiece
+datasets
+bitsandbytes
+einops
+
+# ---------- Utilities ----------
+tiktoken
+python-dotenv
+pydantic>=2.8.0
+httpx
+requests
+tqdm
+rich
+colorama
+tenacity
+
+# ---------- Optional (for demos / visualization) ----------
+gradio
+streamlit
+notebook
+pytest
