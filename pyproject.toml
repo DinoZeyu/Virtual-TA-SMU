@@ -9,12 +9,11 @@ dependencies = [
     # ==========================
     # 1️⃣  Core Deep Learning Stack (GPU)
     # ==========================
-    "torch>=2.2.0",                 # GPU-enabled PyTorch (CUDA 11+/12)
+    "torch>=2.2.0", # GPU-enabled PyTorch (CUDA 11+/12)
     "accelerate>=0.33.0",
     "transformers>=4.45.0",
-    "unsloth>=2024.10.0",           # Efficient LoRA / 4bit model loader
+    "unsloth>=2024.10.0", # Efficient LoRA / 4bit model loader
     "huggingface-hub>=0.26.0",
-
     # ==========================
     # 2️⃣  LangChain & Ecosystem
     # ==========================
@@ -23,20 +22,17 @@ dependencies = [
     "langchain-community>=0.3.8",
     "langchain-experimental>=0.3.4",
     "langgraph>=0.2.72",
-
     # ==========================
     # 3️⃣  Multi-Agent Framework (Microsoft AutoGen)
     # ==========================
     "pyautogen>=0.3.0",
-
     # ==========================
     # 4️⃣  Embeddings + Vector DB
     # ==========================
     "sentence-transformers>=3.0.1", # For HuggingFaceBgeEmbeddings
-    "faiss-cpu>=1.7.4",             # ✅ Python 3.12 compatible (CPU)
-    "tavily-python>=0.3.0",         # Tavily Search API client
-    "langchain-tavily>=0.2.11,<0.3.0",      # LangChain wrapper for Tavily
-
+    "faiss-cpu>=1.7.4", # ✅ Python 3.12 compatible (CPU)
+    "tavily-python>=0.3.0", # Tavily Search API client
+    "langchain-tavily>=0.2.11,<0.3.0", # LangChain wrapper for Tavily
     # ==========================
     # 5️⃣  Data & Utility Libraries
     # ==========================
@@ -50,6 +46,7 @@ dependencies = [
     "googlesearch-python>=1.3.0",
     "numpy>=1.26.4",
     "psutil>=5.9.8",
+    "pydantic>=2.12.3",
 ]
 
 [tool.uv]
