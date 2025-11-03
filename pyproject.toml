@@ -49,10 +49,5 @@ dependencies = [
     "pydantic>=2.12.3",
 ]
 
-[tool.uv]
-managed = true
-dev-dependencies = [
-    "pytest>=8.0.0",
-    "ruff>=0.6.0",
-    "black>=24.4.2",
-]
+[dependency-groups]
+dev = ["pytest", "ruff", "black"]
