@@ -1,182 +1,248 @@
 import streamlit as st
 import asyncio
-from MultiAgent import build_math_agent, build_physics_agent, build_chemistry_agent
-from autogen_core.models import UserMessage
+import re
+import html
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+
+# ---------------------------
+# Import Agents
+# ---------------------------
+from MultiAgent import (
+    build_math_agent,
+    build_physics_agent,
+    build_chemistry_agent
+)
+
 from autogen_ext.models.ollama import OllamaChatCompletionClient
+from autogen_core.models import UserMessage
+from langchain_community.tools.tavily_search import TavilySearchResults
 
 
-# ============================================================
-# Initialize all agents (cached to avoid reloading)
-# ============================================================
+# =======================================================
+# Safe text extractor (prevents leftover HTML artifacts)
+# =======================================================
+
+def extract_text(resp):
+    if isinstance(resp, str):
+        return resp.strip()
+
+    for attr in ("output_text", "text"):
+        if hasattr(resp, attr):
+            return getattr(resp, attr).strip()
+
+    return str(resp).strip()
+
+
+def clean_html_artifacts(text: str) -> str:
+    text = re.sub(r"<[^>]+>", "", text)
+    return text.strip()
+
+
+# =======================================================
+# Unified Async Runner
+# =======================================================
+
+async def run_async(coro):
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            return await coro
+        return loop.run_until_complete(coro)
+    except RuntimeError:
+        new_loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(new_loop)
+        return new_loop.run_until_complete(coro)
+
+
+# =======================================================
+# Initialize Agents
+# =======================================================
+
 @st.cache_resource
 def initialize_agents():
     return {
         "math": build_math_agent(),
         "physics": build_physics_agent(),
         "chemistry": build_chemistry_agent(),
+
         "leader": OllamaChatCompletionClient(model="mistral:7b"),
-        "reviewer": OllamaChatCompletionClient(
-            model="gemma3:12b",
-            model_info={
-                "name": "gemma3:12b",
-                "type": "ollama",
-                "format": "text",
-                "json_output": False,
-                "vision": False,
-                "function_calling": False
-            }
-        )
+        "reviewer": OllamaChatCompletionClient(model="gemma3:12b"),
     }
 
 agents = initialize_agents()
 
 
-# ============================================================
-# Helper: extract model text safely
-# ============================================================
-def extract_text(resp):
-    """Extract text from any Ollama or Autogen response cleanly."""
-    # 1. String case
-    if isinstance(resp, str):
-        return resp.strip()
+# =======================================================
+# Web Search Agent
+# =======================================================
 
-    # 2. Common attributes
-    for attr in ("output_text", "text"):
-        if hasattr(resp, attr):
-            val = getattr(resp, attr)
-            if isinstance(val, str):
-                return val.strip()
+tavily = TavilySearchResults(k=5)
 
-    # 3. Nested content path
-    for path in (("outputs", 0, "content", 0, "text"), ("content", 0, "text")):
-        try:
-            val = resp
-            for key in path:
-                val = val[key] if isinstance(key, int) else getattr(val, key)
-            if isinstance(val, str):
-                return val.strip()
-        except Exception:
-            continue
+async def fetch_web_results(q):
+    return await asyncio.to_thread(lambda: tavily.run(q))
 
-    # ✅ 4. Handle `CreateResult(content=...)`
-    if hasattr(resp, "content"):
-        val = resp.content
-        if isinstance(val, str):
-            return val.strip()
-        if isinstance(val, list) and len(val) > 0 and isinstance(val[0], str):
-            return val[0].strip()
-        return str(val).strip()
+async def web_answer(query):
+    results = await fetch_web_results(query)
+    content = "\n\n".join([r["content"] for r in results if "content" in r])
 
-    # 5. Fallback
-    return str(resp).strip()
+    prompt = f"""
+Use ONLY the information below:
 
-# ============================================================
-# Core multi-agent logic
-# ============================================================
-async def classify_subject(query: str) -> str:
-    prompt = (
-        "Classify this question as Math, Physics, or Chemistry. "
-        "Reply with only one word.\n\n" + query
-    )
+{content}
+
+User question:
+{query}
+"""
+
+    resp = await agents["reviewer"].create([UserMessage(content=prompt, source="user")])
+    return extract_text(resp)
+
+
+# =======================================================
+# Classification
+# =======================================================
+
+async def classify_subject(query):
+    prompt = f"""
+Classify into ONE word: Math, Physics, Chemistry, Web
+Query: {query}
+"""
+
     resp = await agents["leader"].create([UserMessage(content=prompt, source="user")])
-    text = extract_text(resp).lower()
-    for subject in ["math", "phys", "chem"]:
-        if subject in text:
-            return subject.replace("phys", "physics").replace("chem", "chemistry")
-    return "unknown"
+    t = extract_text(resp).lower()
+
+    if "math" in t: return "math"
+    if "phys" in t: return "physics"
+    if "chem" in t: return "chemistry"
+    if "web" in t: return "web"
+    return "math"  # default fallback
 
 
-async def answer_query(query: str) -> str:
+# =======================================================
+# Main Answer Pipeline
+# =======================================================
+
+async def answer_query(query, agent_override="Auto"):
+
+    # Manual override
+    if agent_override in ["Math", "Physics", "Chemistry"]:
+        forced = agent_override.lower()
+        out = await asyncio.to_thread(
+            agents[forced].invoke, {"input": query}
+        )
+        return extract_text(out["answer"])
+
+    # Auto mode
     subject = await classify_subject(query)
-    specialist_agents = {
-        "math": agents["math"],
-        "physics": agents["physics"],
-        "chemistry": agents["chemistry"]
-    }
 
-    if subject in specialist_agents:
-        out = await asyncio.to_thread(specialist_agents[subject].invoke, {"input": query})
-        answer = out.get("answer", "").strip()
-    else:
-        resp = await agents["reviewer"].create([UserMessage(
-            content=f"Answer this question step-by-step:\n\n{query}", 
-            source="user"
-        )])
-        return extract_text(resp)
-    
-    review_prompt = (
-        f"Question: {query}\nAnswer: {answer}\n\n"
-        f"If this answer is correct, reply 'APPROVED'. "
-        f"Otherwise, provide the corrected answer."
+    if subject == "web":
+        return await web_answer(query)
+
+    out = await asyncio.to_thread(
+        agents[subject].invoke, {"input": query}
     )
-    resp = await agents["reviewer"].create([UserMessage(content=review_prompt, source="user")])
-    review = extract_text(resp)
-    
-    return answer if "APPROVED" in review.upper() else review
+    return extract_text(out["answer"])
 
 
-# ============================================================
+# =======================================================
 # Streamlit UI
-# ============================================================
-st.set_page_config(page_title="Multi-Agent Academic Assistant", page_icon="🤖")
-st.title("Multi-Agent Academic Assistant")
+# =======================================================
 
+st.set_page_config(page_title="Multi-Agent Assistant", page_icon="🤖")
+
+st.title("🤖 Multi-Agent Assistant")
+st.caption("Math • Physics • Chemistry • Web Search")
+
+# Sidebar
 with st.sidebar:
-    st.header("System Information")
-    st.success("✓ Math Agent")
-    st.success("✓ Physics Agent")
-    st.success("✓ Chemistry Agent")
-    st.info("📋 Leader: Mistral 7B")
-    st.info("✅ Reviewer: Gemma3 12B")
-    st.markdown("---")
-    st.markdown("""
-    **How it works:**
-    
-    1️⃣ Leader classifies your question  
-    2️⃣ Specialist answers  
-    3️⃣ Reviewer checks correctness  
-    """)
+    st.markdown("### 🛠 System Status")
+
+    st.markdown(
+        """
+    <div style="background:#e8f5e9;padding:15px;border-radius:10px;margin-bottom:10px;">
+        <p style="margin: 0;"><b>✓ Math Agent</b></p>
+        <p style="margin: 0;"><b>✓ Physics Agent</b></p>
+        <p style="margin: 0;"><b>✓ Chemistry Agent</b></p>
+    </div>
+    """,
+        unsafe_allow_html=True,
+    )
+
+    st.markdown(
+        """
+    <div style="background:#e3f2fd;padding:15px;border-radius:10px;margin-bottom:10px;">
+        <b>📋 Leader:</b> Mistral-7B
+    </div>
+    """,
+        unsafe_allow_html=True,
+    )
+
+    st.markdown(
+        """
+    <div style="background:#fff3e0;padding:15px;border-radius:10px;margin-bottom:10px;">
+        <b>🔍 Reviewer:</b> Gemma-3-12B
+    </div>
+    """,
+        unsafe_allow_html=True,
+    )
+
+    st.markdown("<hr>", unsafe_allow_html=True)
+    st.markdown("### 🎛 Manual Agent Selection")
+
+    agent_choice = st.radio(
+        "Choose agent (optional):",
+        ["Auto", "Math", "Physics", "Chemistry"],
+        index=0,
+    )
 
 
+# Chat State
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-for msg in st.session_state.messages:
-    with st.chat_message(msg["role"]):
-        st.markdown(msg["content"])
 
-user_input = st.chat_input("Ask a Math, Physics, or Chemistry question...")
+def render_message(role, content):
+
+    content = clean_html_artifacts(content)
+
+    parts = re.split(r'(\$\$[\s\S]*?\$\$)', content)
+
+    for part in parts:
+        if part.startswith("$$") and part.endswith("$$"):
+            st.latex(part.strip("$"))
+        else:
+            bubble = "#DCF8C6" if role == "user" else "#F1F0F0"
+            align = "right" if role == "user" else "left"
+            st.markdown(
+                f"""
+                <div style="background:{bubble};padding:12px;border-radius:12px;
+                            margin:8px 0;max-width:70%;float:{align};">
+                    {html.escape(part)}
+                </div>
+                <div style="clear:both;"></div>
+                """,
+                unsafe_allow_html=True
+            )
+
+
+for msg in st.session_state.messages:
+    render_message(msg["role"], msg["content"])
+
+
+# Input
+user_input = st.chat_input("Ask a question...")
 
 if user_input:
-    with st.chat_message("user"):
-        st.markdown(user_input)
     st.session_state.messages.append({"role": "user", "content": user_input})
+    render_message("user", user_input)
 
-    with st.chat_message("assistant"):
-        with st.spinner("Processing your question..."):
-            try:
-                # ✅ Safe event loop handling (fixed version)
-                try:
-                    loop = asyncio.get_event_loop()
-                except RuntimeError:
-                    loop = asyncio.new_event_loop()
-                    asyncio.set_event_loop(loop)
+    with st.spinner("Thinking..."):
+        assistant_response = asyncio.run(
+            run_async(answer_query(user_input, agent_choice))
+        )
 
-                if loop.is_running():
-                    assistant_response = asyncio.run(answer_query(user_input))
-                else:
-                    assistant_response = loop.run_until_complete(answer_query(user_input))
-
-            except RuntimeError as e:
-                # if event loop closed, reinit
-                if "closed" in str(e).lower():
-                    loop = asyncio.new_event_loop()
-                    asyncio.set_event_loop(loop)
-                    assistant_response = loop.run_until_complete(answer_query(user_input))
-                else:
-                    raise e
-            except Exception as e:
-                assistant_response = f"Error: {str(e)}"
-        
-        st.markdown(assistant_response)
     st.session_state.messages.append({"role": "assistant", "content": assistant_response})
+    render_message("assistant", assistant_response)
