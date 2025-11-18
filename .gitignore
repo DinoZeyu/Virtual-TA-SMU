@@ -116,3 +116,4 @@ screenshots/
 *.token
 *token*.txt
 ollama_local
+*.txt
