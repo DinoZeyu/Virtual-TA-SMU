@@ -1,193 +1,89 @@
+# MultiAgent/multi_agent.py
+
 from langchain.prompts import ChatPromptTemplate
 from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain.chains.retrieval import create_retrieval_chain
+
 from .utils import load_local_model, load_faiss_retriever
 
 
-# ==========================
-# Math Agent
-# ==========================
+def _build_agent(faiss_dir: str, system_text: str):
+    """
+    Helper to build a RAG agent:
+      - local HF model (wrapped by load_local_model)
+      - FAISS retriever (load_faiss_retriever)
+      - stuff chain + retrieval chain
+    """
+    llm = load_local_model()
+    retriever = load_faiss_retriever(faiss_dir)
+
+    # IMPORTANT: only {context} and {input} are template variables
+    system_prompt = system_text + "\n\nRetrieved examples:\n{context}\n"
+
+    prompt = ChatPromptTemplate.from_messages(
+        [
+            ("system", system_prompt),
+            ("human", "{input}"),
+        ]
+    )
+
+    qa_chain = create_stuff_documents_chain(llm, prompt)
+    rag_chain = create_retrieval_chain(retriever, qa_chain)
+    return rag_chain
+
 
 def build_math_agent():
-    """Math RAG agent with clean, LaTeX-safe output formatting."""
-
-    local_model = load_local_model("meta-llama/Meta-Llama-3.1-8B-Instruct")
-
-    retriever = load_faiss_retriever(
-        faiss_dir="faiss_index_math",
-        embedding_model_name="BAAI/bge-large-en-v1.5",
+    """Math RAG agent: explanation + one LaTeX formula."""
+    system_text = (
+        "You are a careful math reasoning tutor.\n"
+        "You solve school and undergraduate level math problems step by step.\n\n"
+        "OUTPUT FORMAT:\n"
+        "1. First write a clear explanation in plain English only. "
+        "Do not use LaTeX, HTML, code fences, or markdown tables in this part.\n"
+        "2. Then on a new line write ONE LaTeX block for the final key formula or answer, "
+        "RULES FOR THE LATEX BLOCK:\n"
+        "- Only math symbols, no English sentences.\n"
+        "- No surrounding backticks or code fences.\n"
+        "- Do not repeat the whole explanation inside the LaTeX block.\n"
+        "- Never output HTML tags such as <div> or style attributes."
     )
 
-    system_prompt = """
-You are a math reasoning assistant.
+    return _build_agent("faiss_index_math", system_text)
 
-FORMAT RULES (do not break them):
-
-1. Do NOT output HTML of any kind.
-2. Do NOT output markdown code fences (no ```).
-3. Your answer MUST have exactly two parts, in this order:
-
-(1) Plain-English explanation
-    - No LaTeX.
-    - No explicit formulas like "f(x)=3x^2-4x+7".
-    - You may refer to ideas in words, e.g., "the derivative of a quadratic term".
-
-(2) Final math expression
-    - A SINGLE LaTeX block on one line, in the form:  $$...$$
-    - ONLY mathematical symbols inside $$...$$.
-    - NO English text inside $$...$$.
-    - NO multi-line LaTeX.
-
-Example of good output:
-
-The derivative is found by applying the power rule term by term.
-$$f'(x)=6x-4$$
-
-Retrieved examples:
-{context}
-"""
-
-    prompt = ChatPromptTemplate.from_messages(
-        [
-            ("system", system_prompt),
-            ("human", "{input}"),
-        ]
-    )
-
-    qa_chain = create_stuff_documents_chain(local_model, prompt)
-    rag_chain_math = create_retrieval_chain(retriever, qa_chain)
-    return rag_chain_math
-
-
-# ==========================
-# Physics Agent
-# ==========================
 
 def build_physics_agent():
-    """Physics RAG agent with clean, LaTeX-safe output formatting."""
-
-    local_model = load_local_model("meta-llama/Meta-Llama-3.1-8B-Instruct")
-
-    retriever = load_faiss_retriever(
-        faiss_dir="faiss_index_physics",
-        embedding_model_name="BAAI/bge-large-en-v1.5",
+    """Physics RAG agent: explanation + one LaTeX equation."""
+    system_text = (
+        "You are a physics problem-solving tutor.\n"
+        "You use the retrieved examples and standard physics formulas to answer questions "
+        "about mechanics, electromagnetism and basic university physics.\n\n"
+        "OUTPUT FORMAT:\n"
+        "1. First give a clear step-by-step explanation in plain English. "
+        "Explain units and physical meaning when helpful. "
+        "Do not use LaTeX or HTML here.\n"
+        "2. Then on a new line write ONE LaTeX block with the key final equation or result, "
+        "RULES FOR THE LATEX BLOCK:\n"
+        "- Only physics symbols and numbers, no English sentences.\n"
+        "- No markdown code fences.\n"
+        "- Never output HTML tags."
     )
 
-    system_prompt = """
-You are a physics reasoning assistant.
+    return _build_agent("faiss_index_physics", system_text)
 
-FORMAT RULES (do not break them):
-
-1. Do NOT output HTML.
-2. Do NOT output markdown code fences (```).
-3. Your answer MUST have exactly two parts:
-
-(1) Plain-English explanation
-    - No LaTeX.
-    - No explicit symbolic formulas like "v = u + at".
-    - Explain the physical reasoning in simple language.
-
-(2) Final physics equation or result
-    - A SINGLE LaTeX block on one line:  $$...$$
-    - ONLY symbols/numbers/operators inside $$...$$.
-    - NO English text inside $$...$$.
-    - NO multi-line LaTeX.
-
-Example of good output:
-
-The time of flight is found by noting that the object takes equal time going up and coming down under constant acceleration.
-$$t=\\frac{2u}{g}$$
-
-Retrieved examples:
-{context}
-"""
-
-    prompt = ChatPromptTemplate.from_messages(
-        [
-            ("system", system_prompt),
-            ("human", "{input}"),
-        ]
-    )
-
-    qa_chain = create_stuff_documents_chain(local_model, prompt)
-    rag_chain_physics = create_retrieval_chain(retriever, qa_chain)
-    return rag_chain_physics
-
-
-# ==========================
-# Chemistry Agent
-# ==========================
 
 def build_chemistry_agent():
-    """Chemistry RAG agent with clean, LaTeX-safe output formatting."""
-
-    local_model = load_local_model("meta-llama/Meta-Llama-3.1-8B-Instruct")
-
-    retriever = load_faiss_retriever(
-        faiss_dir="faiss_index_chemistry",
-        embedding_model_name="BAAI/bge-large-en-v1.5",
+    """Chemistry RAG agent: explanation + one LaTeX chemical equation."""
+    system_text = (
+        "You are a chemistry tutor.\n"
+        "You explain reactions, stoichiometry, acids and bases, and similar topics.\n\n"
+        "OUTPUT FORMAT:\n"
+        "1. First write a clear English explanation of the chemical process. "
+        "Do not use LaTeX or HTML in this explanation.\n"
+        "2. Then on a new line write ONE LaTeX block containing the main balanced "
+        "RULES FOR THE LATEX BLOCK:\n"
+        "- Only symbols for elements, molecules and arrows, no English sentences.\n"
+        "- You may use LaTeX commands like \\rightarrow or subscripts such as H_2O.\n"
+        "- Do not output HTML or markdown code fences."
     )
 
-    system_prompt = """
-You are a chemistry reasoning assistant.
-
-FORMAT RULES (do not break them):
-
-1. Do NOT output HTML.
-2. Do NOT output markdown code fences (```).
-3. Answer MUST have exactly two parts:
-
-(1) Plain-English explanation
-    - No LaTeX.
-    - No explicit formulas like "H2O" or "NaCl" written as formulas.
-    - Describe what happens conceptually (e.g., "an acid reacts with a base to form salt and water").
-
-(2) Final chemical equation
-    - A SINGLE LaTeX block on one line:  $$...$$
-    - Should represent the balanced reaction.
-    - ONLY chemical symbols and operators inside $$...$$.
-    - NO English text inside $$...$$.
-    - NO multi-line LaTeX.
-
-Example of good output:
-
-This is a neutralization reaction between a strong acid and a strong base, forming salt and water.
-$$\\mathrm{HCl + NaOH -> NaCl + H_2O}$$
-
-Retrieved examples:
-{context}
-"""
-
-    prompt = ChatPromptTemplate.from_messages(
-        [
-            ("system", system_prompt),
-            ("human", "{input}"),
-        ]
-    )
-
-    qa_chain = create_stuff_documents_chain(local_model, prompt)
-    rag_chain_chemistry = create_retrieval_chain(retriever, qa_chain)
-    return rag_chain_chemistry
-
-
-# Optional quick test
-if __name__ == "__main__":
-    math_agent = build_math_agent()
-    print("MATH TEST:")
-    print(math_agent.invoke({"input": "If f(x)=3x^2-4x+7, what is f'(x)?"})["answer"])
-
-    physics_agent = build_physics_agent()
-    print("\nPHYSICS TEST:")
-    print(
-        physics_agent.invoke(
-            {"input": "A ball is thrown upwards at 20 m/s. Ignore air resistance and find the total time of flight."}
-        )["answer"]
-    )
-
-    chem_agent = build_chemistry_agent()
-    print("\nCHEM TEST:")
-    print(
-        chem_agent.invoke(
-            {"input": "What happens when hydrochloric acid reacts with sodium hydroxide?"}
-        )["answer"]
-    )
+    return _build_agent("faiss_index_chemistry", system_text)
